@@ -1,10 +1,8 @@
-# The start of a collection of golibs/go-code
-
-## bisect: a simple array bisection algorithm
+# bisect: a simple array bisection algorithm
 
 Source *http://docs.python.org/library/bisect.html*
 
-### Example
+## Example
 
     package main
 
