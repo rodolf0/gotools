@@ -1,6 +1,7 @@
 package bisect
 
 import (
+	"fmt"
 	"math/rand"
 	"testing"
 	"time"
@@ -110,8 +111,13 @@ func TestIndex(t *testing.T) {
 	if idx, _ := Index(list, MyInt(32)); idx != 2 {
 		t.Fatal("Element has wrong index")
 	}
+	if idx, _ := Index(list, MyInt(-13)); idx != 0 {
+		t.Fatal("Element has wrong index")
+	}
+	if idx, _ := Index(list, MyInt(93)); idx != 3 {
+		t.Fatal("Element has wrong index")
+	}
 }
-
 
 func TestRemove(t *testing.T) {
 	var list = []Elem{}
@@ -121,11 +127,39 @@ func TestRemove(t *testing.T) {
 	}
 	for i := 0; i < 1000; i++ {
 		list = Remove(list, list[int(float32(len(list))*rand.Float32())])
-		if len(list) != n - i - 1 {
+		if len(list) != n-i-1 {
 			t.Fatalf("Expected list length %v, got %v", n-i-1, len(list))
 		}
 		if !inOrder(list) {
 			t.FailNow()
 		}
 	}
+}
+
+type Score int
+
+func (i Score) Less(other Elem) bool {
+	return i < other.(Score)
+}
+
+func ExampleBisect() {
+	var breakpoints = []Elem{Score(60), Score(70), Score(80), Score(90)}
+	var grades = "FDCBA"
+
+	for _, test_score := range []Score{93, 0, 12, 55, 61, 72, 83, 99, 110, 100} {
+		var grade_idx = Bisect(breakpoints, test_score)
+		fmt.Printf("Score %v is graded with %c\n", test_score, grades[grade_idx])
+	}
+
+	// Output:
+	// Score 93 is graded with A
+	// Score 0 is graded with F
+	// Score 12 is graded with F
+	// Score 55 is graded with F
+	// Score 61 is graded with D
+	// Score 72 is graded with C
+	// Score 83 is graded with B
+	// Score 99 is graded with A
+	// Score 110 is graded with A
+	// Score 100 is graded with A
 }
