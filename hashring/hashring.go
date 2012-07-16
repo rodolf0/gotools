@@ -103,8 +103,18 @@ func (r *HashRing) GetNode(key *Key) Node {
 }
 
 // get the 'num' nodes where a key can be stored replicated
-func (r *HashRing) GetNodes(key *Key, num uint) []Node {
-	return nil
+// since the key is stored in the preceding virtual-node, replicas
+// can be store in the n previous buckets in case the primary fails
+func (r *HashRing) GetNodes(key *Key, num int) (list []Node) {
+	list = make([]Node, 0, 3)
+	r.Lock()
+	var base_idx = bisect.Bisect(r.sorted_keys, key)
+	for i := 1; i <= num; i++ {
+		var idx = (base_idx - i + (num * len(r.sorted_keys))) % len(r.sorted_keys)
+		list = append(list, r.virtual_nodes[r.sorted_keys[idx].(Key)])
+	}
+	r.Unlock()
+	return
 }
 
 // get the right-open range [start, end) of keys a virtual-node can hold
