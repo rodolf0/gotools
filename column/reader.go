@@ -6,43 +6,18 @@ import (
 	"io"
 )
 
-type Field []byte
-type Row []Field
+type Row [][]byte
 
 type Reader struct {
 	rd    *bufio.Reader
-	delim byte
+	delim []byte
 }
 
-func NewReader(r io.Reader, delim byte) *Reader {
+func NewReader(r io.Reader, delim string) *Reader {
 	return &Reader{
 		rd:    bufio.NewReader(r),
-		delim: delim,
+		delim: []byte(delim),
 	}
-}
-
-// Index returns the index of the field in Row containing field 'name'
-func (r *Row) Index(name Field) int {
-	for i, n := range []Field(*r) {
-		if bytes.Equal(n, name) {
-			return i
-		}
-	}
-	return -1
-}
-
-// Indexes returns the a slice of uint's mapping row values to
-// the indexes in the row that contain those values
-func (r *Row) Indexes(names []Field) []uint {
-	var indexes []uint
-	for i, name := range names {
-		if r.Index(name) != -1 {
-			indexes = append(indexes, uint(i))
-		} else {
-			return nil
-		}
-	}
-	return indexes
 }
 
 // ReadLine reads a line, finds fields boundaries and returns a slice
@@ -58,16 +33,5 @@ func (cr *Reader) ReadLine() (Row, error) {
 	} else {
 		line = line[:len(line)-1]
 	}
-	// find field boundaries
-	var columns []Field
-	for {
-		if d := bytes.IndexByte(line, cr.delim); d >= 0 {
-			columns = append(columns, line[:d])
-			line = line[d+1:]
-		} else {
-			columns = append(columns, line)
-			break
-		}
-	}
-	return columns, nil
+	return bytes.Split(line, cr.delim), nil
 }
