@@ -5,10 +5,10 @@ import (
 )
 
 // FieldMap returns a field-content to index map
-func (r Row) FieldMap() map[string]uint {
-	var fm = make(map[string]uint)
+func (r Row) FieldMap() map[string]int {
+	var fm = make(map[string]int)
 	for i, f := range r {
-		fm[string(f)] = uint(i)
+		fm[string(f)] = i
 	}
 	return fm
 }
@@ -18,7 +18,7 @@ func (r Row) Indexes(fields [][]byte) (indexes []int) {
 	var fmap = r.FieldMap()
 	for _, f := range fields {
 		if i, ok := fmap[string(f)]; ok {
-			indexes = append(indexes, int(i))
+			indexes = append(indexes, i)
 		} else {
 			indexes = append(indexes, -1)
 		}
@@ -27,10 +27,10 @@ func (r Row) Indexes(fields [][]byte) (indexes []int) {
 }
 
 // Fields returns a slice with the fields requested by indexes or nil
-func (r Row) Fields(indexes []uint) (fields [][]byte) {
+func (r Row) Fields(indexes []int) (fields [][]byte) {
 	var _r = [][]byte(r)
 	for _, i := range indexes {
-		if int(i) >= len(_r) {
+		if i >= len(_r) {
 			fields = append(fields, nil)
 		} else {
 			fields = append(fields, _r[i])
@@ -45,4 +45,9 @@ func (r Row) ParseFields(s *string) (indexes []int) {
 		return r.Indexes(bytes.Split([]byte(*s), []byte{','}))
 	}
 	return nil
+}
+
+// JoinFields extracts the requested fields and joins them by delim
+func (r Row) JoinFields(indexes []int, delim []byte) []byte {
+	return bytes.Join(r.Fields(indexes), delim)
 }

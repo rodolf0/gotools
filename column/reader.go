@@ -13,10 +13,10 @@ type Reader struct {
 	delim []byte
 }
 
-func NewReader(r io.Reader, delim string) *Reader {
+func NewReader(r io.Reader, delim []byte) *Reader {
 	return &Reader{
 		rd:    bufio.NewReader(r),
-		delim: []byte(delim),
+		delim: delim,
 	}
 }
 
