@@ -5,7 +5,6 @@ import (
 	"flag"
 	"io"
 	"os"
-	"strconv"
 )
 
 var Delim = flag.String("d", ",", "Field delimiter")
@@ -15,58 +14,55 @@ var Sums = flag.String("S", "", "Aggregation sum fields")
 var Average = flag.String("A", "", "Aggregation average fields")
 var Count = flag.String("C", "", "Aggregation count fields")
 
-// min, max, first, last, concat, x
-
-type Aggregator interface {
-	Aggregate(value []byte)
-}
-
-type Adder float64
-
-func (adder *Adder) Aggregate(value []byte) {
-	var f, _ = strconv.ParseFloat(string(value), 64)
-	*adder += Adder(f)
-}
-
-func init() {
-	flag.Parse()
+type AggField struct {
+	field   int
+	AggCtor func() Aggregator
 }
 
 func main() {
-	r := column.NewReader(os.Stdin, []byte(*Delim))
-	header, _ := r.ReadLine()
-	keys := header.ParseFields(Keys)
+	flag.Parse()
 
-	sums := header.ParseFields(Sums)
-	var sumaggs []string
-	for _, s := range sums {
-		sumaggs = append(sumaggs, string(strconv.AppendInt([]byte("sum-"), int64(s), 10)))
+	var r = column.NewReader(os.Stdin, []byte(*Delim))
+	var header, _ = r.ReadLine()
+	var key_fields = header.ParseFields(Keys)
+	var agg_fields []AggField
+
+	for _, field := range header.ParseFields(Sums) {
+		agg_fields = append(agg_fields, AggField{field, NewAdder})
+	}
+	for _, field := range header.ParseFields(Average) {
+		agg_fields = append(agg_fields, AggField{field, NewAverager})
+	}
+	for _, field := range header.ParseFields(Count) {
+		agg_fields = append(agg_fields, AggField{field, NewCounter})
 	}
 
-	var aggregations = make(map[string]map[string]Aggregator)
+	var aggregations = make(map[string][]Aggregator)
 
 	var line, err = r.ReadLine()
 	for err != io.EOF {
-		var key = string(line.JoinFields(keys, []byte(*Delim)))
+		// build the key for the current line
+		var key = string(line.JoinFields(key_fields, []byte(*Delim)))
+		// instantiate aggregators if this is a new key
 		if _, ok := aggregations[key]; !ok {
-			aggregations[key] = make(map[string]Aggregator)
-		}
-		var aggs = aggregations[key]
-		for i, s := range sums {
-			if aggs[sumaggs[i]] == nil {
-				aggs[sumaggs[i]] = new(Adder)
+			for _, af := range agg_fields {
+				aggregations[key] = append(aggregations[key], af.AggCtor())
 			}
-			aggs[sumaggs[i]].Aggregate(line[s])
+		}
+		// feed current line to aggregators
+		for i, agg := range aggregations[key] {
+			agg.Aggregate(line[agg_fields[i].field])
 		}
 		line, err = r.ReadLine()
 	}
 
-	for k, v := range aggregations {
-		os.Stdout.Write([]byte(k))
+	// output aggregation results
+	for key, aggs := range aggregations {
+		os.Stdout.Write([]byte(key))
 
-		for _, s := range sumaggs {
+		for _, agg := range aggs {
 			os.Stderr.Write([]byte(*Delim))
-			os.Stderr.Write([]byte(strconv.FormatFloat(float64(*v[s].(*Adder)), 'g', -1, 64)))
+			os.Stderr.Write([]byte(agg.String()))
 		}
 		os.Stderr.Write([]byte("\n"))
 	}
