@@ -1,4 +1,4 @@
-package main
+package aggregate
 
 import (
 	"strconv"
@@ -12,10 +12,6 @@ type Aggregator interface {
 // Sums
 type Adder float64
 
-func NewAdder() Aggregator {
-	return new(Adder)
-}
-
 func (a *Adder) Aggregate(value []byte) {
 	var f, _ = strconv.ParseFloat(string(value), 64)
 	*a += Adder(f)
@@ -28,10 +24,6 @@ func (a Adder) String() string {
 // Counters
 type Counter uint64
 
-func NewCounter() Aggregator {
-	return new(Counter)
-}
-
 func (c *Counter) Aggregate(value []byte) {
 	*c += Counter(1)
 }
@@ -42,10 +34,6 @@ func (c *Counter) String() string {
 
 // Minimums
 type Miner float64
-
-func NewMiner() Aggregator {
-	return new(Miner)
-}
 
 func (m *Miner) Aggregate(value []byte) {
 	var f, _ = strconv.ParseFloat(string(value), 64)
@@ -60,10 +48,6 @@ func (m Miner) String() string {
 
 // Maximums
 type Maxer float64
-
-func NewMaxer() Aggregator {
-	return new(Maxer)
-}
 
 func (m *Maxer) Aggregate(value []byte) {
 	var f, _ = strconv.ParseFloat(string(value), 64)
@@ -82,10 +66,6 @@ type Averager struct {
 	num uint64
 }
 
-func NewAverager() Aggregator {
-	return new(Averager)
-}
-
 func (a *Averager) Aggregate(value []byte) {
 	var f, _ = strconv.ParseFloat(string(value), 64)
 	a.sum += f
@@ -102,10 +82,6 @@ func (a Averager) String() string {
 // Firsts
 type Firster []byte
 
-func NewFirster() Aggregator {
-	return new(Firster)
-}
-
 func (f *Firster) Aggregate(value []byte) {
 	if *f == nil {
 		*f = make([]byte, len(value))
@@ -119,10 +95,6 @@ func (f Firster) String() string {
 
 // Lasts
 type Laster []byte
-
-func NewLaster() Aggregator {
-	return new(Laster)
-}
 
 func (l *Laster) Aggregate(value []byte) {
 	if *l == nil || len(*l) < len(value) {
@@ -139,16 +111,6 @@ func (l Laster) String() string {
 type Concater struct {
 	buffer []byte
 	Delim  []byte
-}
-
-func NewConcaterDelim(delim []byte) Aggregator {
-	// here we're just copying the slice if we really need
-	// to own the delimiter we should copy it
-	return &Concater{Delim: delim}
-}
-
-func NewConcater() Aggregator {
-	return &Concater{Delim: []byte{':'}}
 }
 
 func (c *Concater) Aggregate(value []byte) {

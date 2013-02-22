@@ -10,13 +10,13 @@ type Row [][]byte
 
 type Reader struct {
 	rd    *bufio.Reader
-	delim []byte
+	Delim []byte
 }
 
 func NewReader(r io.Reader, delim []byte) *Reader {
 	return &Reader{
 		rd:    bufio.NewReader(r),
-		delim: delim,
+		Delim: delim,
 	}
 }
 
@@ -33,5 +33,5 @@ func (cr *Reader) ReadLine() (Row, error) {
 	} else {
 		line = line[:len(line)-1]
 	}
-	return bytes.Split(line, cr.delim), nil
+	return bytes.Split(line, cr.Delim), nil
 }
