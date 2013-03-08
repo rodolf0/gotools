@@ -9,31 +9,25 @@ import (
 
 var Delim = flag.String("d", ",", "Field delimiter")
 
-var Keys = flag.String("K", "", "Aggregation key fields")
-var Sums = flag.String("S", "", "Aggregation sum fields")
-var Average = flag.String("A", "", "Aggregation average fields")
-var Count = flag.String("C", "", "Aggregation count fields")
+var Keys = flag.String("k", "", "Key fields")
+var Counts = flag.String("c", "", "Count fields")
+var Sums = flag.String("s", "", "Sum fields")
+var Averages = flag.String("a", "", "Average fields")
+var Mins = flag.String("m", "", "Minimum fields")
+var Maxs = flag.String("x", "", "Maximum fields")
+var Firsts = flag.String("f", "", "First fields")
+var Lasts = flag.String("l", "", "Last fields")
+var Concats = flag.String("t", "", "Concat fields")
 
 func main() {
 	flag.Parse()
 
 	var r = column.NewReader(os.Stdin, []byte(*Delim))
 	var header, _ = r.ReadLine()
-	var key_fields = header.ParseFields(Keys)
-	var agg_fields []aggregate.AggSpec
+	var ks, as = aggregate.Configure(header, Keys, Counts, Sums,
+		Averages, Mins, Maxs, Firsts, Lasts, Concats)
 
-	for _, field := range header.ParseFields(Sums) {
-		agg_fields = append(agg_fields, aggregate.AggSpec{field,
-			func() aggregate.Aggregator { return new(aggregate.Adder) }})
-	}
-	for _, field := range header.ParseFields(Average) {
-		agg_fields = append(agg_fields, aggregate.AggSpec{field,
-			func() aggregate.Aggregator { return new(aggregate.Averager) }})
-	}
-	for _, field := range header.ParseFields(Count) {
-		agg_fields = append(agg_fields, aggregate.AggSpec{field,
-			func() aggregate.Aggregator { return new(aggregate.Counter) }})
-	}
+	var aggs = aggregate.Aggregate(r, ks, as)
 
-	aggregate.Aggregate(r, key_fields, agg_fields)
+	aggregate.String(aggs, []byte(*Delim), os.Stdout)
 }
