@@ -8,16 +8,18 @@ import (
 )
 
 var Delim = flag.String("d", ",", "Field delimiter")
+var SubDelim = flag.String("b", ",", "Field delimiter")
 
 var Keys = flag.String("k", "", "Key fields")
 var Counts = flag.String("c", "", "Count fields")
 var Sums = flag.String("s", "", "Sum fields")
 var Averages = flag.String("a", "", "Average fields")
-var Mins = flag.String("m", "", "Minimum fields")
+var Mins = flag.String("n", "", "Minimum fields")
 var Maxs = flag.String("x", "", "Maximum fields")
 var Firsts = flag.String("f", "", "First fields")
 var Lasts = flag.String("l", "", "Last fields")
 var Concats = flag.String("t", "", "Concat fields")
+var Pivots = flag.String("p", "", "Pivot fields")
 
 func main() {
 	flag.Parse()

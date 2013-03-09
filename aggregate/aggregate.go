@@ -59,6 +59,7 @@ func Aggregate(input *column.Reader, keys []int, aggs []AggSpec) map[string][]Ag
 		var key = string(line.JoinFields(keys, input.Delim))
 		// instantiate aggregators if this is a new key
 		if _, ok := aggregations[key]; !ok {
+			aggregations[key] = make([]Aggregator, 0, len(aggs))
 			for _, af := range aggs {
 				aggregations[key] = append(aggregations[key], af.AggCtor())
 			}
