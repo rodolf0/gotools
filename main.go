@@ -2,6 +2,7 @@ package main
 
 import (
 	"aggregate"
+	"bytes"
 	"column"
 	"flag"
 	"os"
@@ -26,8 +27,17 @@ func main() {
 
 	var r = column.NewReader(os.Stdin, []byte(*Delim))
 	var header, _ = r.ReadLine()
-	var ks, as = aggregate.Configure(header, Keys, Counts, Sums,
-		Averages, Mins, Maxs, Firsts, Lasts, Concats)
+
+	var ks, as = aggregate.Configure(header,
+		bytes.Split([]byte(*Keys), []byte{','}),
+		bytes.Split([]byte(*Counts), []byte{','}),
+		bytes.Split([]byte(*Sums), []byte{','}),
+		bytes.Split([]byte(*Averages), []byte{','}),
+		bytes.Split([]byte(*Mins), []byte{','}),
+		bytes.Split([]byte(*Maxs), []byte{','}),
+		bytes.Split([]byte(*Firsts), []byte{','}),
+		bytes.Split([]byte(*Lasts), []byte{','}),
+		bytes.Split([]byte(*Concats), []byte{','}))
 
 	var aggs = aggregate.Aggregate(r, ks, as)
 

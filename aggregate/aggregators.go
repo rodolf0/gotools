@@ -18,7 +18,7 @@ func (a *Adder) Aggregate(value []byte) {
 }
 
 func (a Adder) String() string {
-	return strconv.FormatFloat(float64(a), 'g', -1, 64)
+	return strconv.FormatFloat(float64(a), 'g', 15, 64)
 }
 
 // Counters
@@ -28,36 +28,48 @@ func (c *Counter) Aggregate(value []byte) {
 	*c += Counter(1)
 }
 
-func (c *Counter) String() string {
-	return strconv.FormatUint(uint64(*c), 10)
+func (c Counter) String() string {
+	return strconv.FormatUint(uint64(c), 10)
 }
 
 // Minimums
-type Miner float64
+type Miner struct {
+	min  float64
+	init bool
+}
 
 func (m *Miner) Aggregate(value []byte) {
 	var f, _ = strconv.ParseFloat(string(value), 64)
-	if Miner(f) < *m {
-		*m = Miner(f)
+	if !m.init {
+		m.init = true
+		m.min = f
+	} else if f < m.min {
+		m.min = f
 	}
 }
 
 func (m Miner) String() string {
-	return strconv.FormatFloat(float64(m), 'g', -1, 64)
+	return strconv.FormatFloat(m.min, 'g', 15, 64)
 }
 
 // Maximums
-type Maxer float64
+type Maxer struct {
+	max  float64
+	init bool
+}
 
 func (m *Maxer) Aggregate(value []byte) {
 	var f, _ = strconv.ParseFloat(string(value), 64)
-	if Maxer(f) > *m {
-		*m = Maxer(f)
+	if !m.init {
+		m.init = true
+		m.max = f
+	} else if f > m.max {
+		m.max = f
 	}
 }
 
 func (m Maxer) String() string {
-	return strconv.FormatFloat(float64(m), 'g', -1, 64)
+	return strconv.FormatFloat(m.max, 'g', 15, 64)
 }
 
 // Averages
@@ -74,7 +86,7 @@ func (a *Averager) Aggregate(value []byte) {
 
 func (a Averager) String() string {
 	if a.num > 0 {
-		return strconv.FormatFloat(a.sum/float64(a.num), 'g', -1, 64)
+		return strconv.FormatFloat(a.sum/float64(a.num), 'g', 15, 64)
 	}
 	return "0"
 }

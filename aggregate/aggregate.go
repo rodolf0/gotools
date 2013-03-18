@@ -11,7 +11,7 @@ type AggSpec struct {
 }
 
 func Configure(header column.Row, Keys, Counts, Sums, Averages, Mins,
-	Maxs, Firsts, Lasts, Concats *string) ([]int, []AggSpec) {
+	Maxs, Firsts, Lasts, Concats [][]byte) ([]int, []AggSpec) {
 
 	var aggs []AggSpec
 
@@ -55,18 +55,20 @@ func Aggregate(input *column.Reader, keys []int, aggs []AggSpec) map[string][]Ag
 
 	var line, err = input.ReadLine()
 	for err == nil {
-		// build the key for the current line
-		var key = string(line.JoinFields(keys, input.Delim))
-		// instantiate aggregators if this is a new key
-		if _, ok := aggregations[key]; !ok {
-			aggregations[key] = make([]Aggregator, 0, len(aggs))
-			for _, af := range aggs {
-				aggregations[key] = append(aggregations[key], af.AggCtor())
+		var fields = line.Split(nil)
+		var key = string(fields.JoinFields(keys).Line)
+		var agg, ok = aggregations[key]
+
+		if !ok {
+			agg = make([]Aggregator, 0, len(aggs))
+			for _, a := range aggs {
+				agg = append(agg, a.AggCtor())
 			}
+			aggregations[key] = agg
 		}
-		// feed current line to aggregators
-		for i, agg := range aggregations[key] {
-			agg.Aggregate(line[aggs[i].Field])
+
+		for i, a := range agg {
+			a.Aggregate(fields.Fields[aggs[i].Field])
 		}
 		line, err = input.ReadLine()
 	}
