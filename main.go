@@ -2,6 +2,7 @@ package main
 
 import (
 	"aggregate"
+	"bufio"
 	"flag"
 	"os"
 	"stream"
@@ -27,20 +28,14 @@ var Aggs = map[string]*string{
 func main() {
 	flag.Parse()
 
-	var lgen = stream.LineGenerator(os.Stdin)
-	var header = <-lgen
+	var lines = stream.LineGenerator(os.Stdin)
+	var header = <-lines
 	var idxmap = header.IndexMap([]byte(*Delim))
 
-	var aggspec = aggregate.Configure(Keys, Pivots, Aggs, idxmap, SubDelim)
-	//	var aggs = aggregate.Aggregate(reader, []byte(*Delim), aggspec)
-	//	var aggs = aggregate.Aggregate2(lgen, []byte(*Delim), aggspec)
-	//	aggregate.String(aggs, []byte(*Delim), os.Stdout)
+	var config = aggregate.Configure(Keys, Pivots, Aggs, idxmap, SubDelim)
+	var aggs = aggregate.Aggregate(lines, []byte(*Delim), config)
 
-	var partial = make(chan map[string][]aggregate.Aggregator, 8)
-	for i := 0; i < cap(partial); i++ {
-		go func() {
-			partial <- aggregate.Aggregate2(lgen, []byte(*Delim), aggspec)
-		}()
-	}
-	aggregate.String(<-partial, []byte(*Delim), os.Stdout)
+	var out = bufio.NewWriter(os.Stdout)
+	aggregate.Print(aggs, []byte(*Delim), out)
+	out.Flush()
 }
