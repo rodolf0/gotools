@@ -21,18 +21,17 @@ func NewReader(r io.Reader) *Reader {
 
 func LineGenerator(r io.Reader) <-chan Line {
 	var ch = make(chan Line, 64)
-	var br = bufio.NewReader(r)
 	go func() {
+		var br = bufio.NewReader(r)
 		line, err := br.ReadBytes('\n')
-		for err != nil {
+		for err == nil {
 			if len(line) > 1 && line[len(line)-2] == '\r' {
-				ch <- Line(line[:len(line)-2])
+				ch <- line[:len(line)-2]
 			} else {
-				ch <- Line(line[:len(line)-1])
+				ch <- line[:len(line)-1]
 			}
 			line, err = br.ReadBytes('\n')
 		}
-		ch <- Line(line)
 		close(ch)
 	}()
 	return ch

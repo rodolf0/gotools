@@ -27,13 +27,20 @@ var Aggs = map[string]*string{
 func main() {
 	flag.Parse()
 
-	var reader = stream.NewReader(os.Stdin)
-	var header, _ = reader.ReadLine()
-
+	var lgen = stream.LineGenerator(os.Stdin)
+	var header = <-lgen
 	var idxmap = header.IndexMap([]byte(*Delim))
 
 	var aggspec = aggregate.Configure(Keys, Pivots, Aggs, idxmap, SubDelim)
-	var aggs = aggregate.Aggregate(reader, []byte(*Delim), aggspec)
+	//	var aggs = aggregate.Aggregate(reader, []byte(*Delim), aggspec)
+	//	var aggs = aggregate.Aggregate2(lgen, []byte(*Delim), aggspec)
+	//	aggregate.String(aggs, []byte(*Delim), os.Stdout)
 
-	aggregate.String(aggs, []byte(*Delim), os.Stdout)
+	var partial = make(chan map[string][]aggregate.Aggregator, 8)
+	for i := 0; i < cap(partial); i++ {
+		go func() {
+			partial <- aggregate.Aggregate2(lgen, []byte(*Delim), aggspec)
+		}()
+	}
+	aggregate.String(<-partial, []byte(*Delim), os.Stdout)
 }
