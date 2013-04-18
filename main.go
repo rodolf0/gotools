@@ -8,8 +8,9 @@ import (
 	"stream"
 )
 
+//var HasHeader = flag.Bool("H", true, "")
 var Delim = flag.String("d", ",", "Field delimiter")
-var SubDelim = flag.String("b", "|", "Field delimiter")
+var SubDelim = flag.String("b", "|", "Field sub-delimiter")
 
 var Keys = flag.String("k", "", "Key fields")
 var Pivots = flag.String("p", "", "Pivot fields")
@@ -29,13 +30,9 @@ func main() {
 	flag.Parse()
 
 	var lines = stream.LineGenerator(os.Stdin)
-	var header = <-lines
-	var idxmap = header.IndexMap([]byte(*Delim))
-
-	var config = aggregate.Configure(Keys, Pivots, Aggs, idxmap, SubDelim)
-	var aggs = aggregate.Aggregate(lines, []byte(*Delim), config)
-
+	var a = aggregate.Configure(Keys, Pivots, Aggs, Delim, SubDelim, <-lines)
+	a.AggregateStream(lines)
 	var out = bufio.NewWriter(os.Stdout)
-	aggregate.Print(aggs, []byte(*Delim), out)
+	a.Print(out)
 	out.Flush()
 }

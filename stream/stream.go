@@ -19,6 +19,8 @@ func NewReader(r io.Reader) *Reader {
 	return &Reader{r: bufio.NewReader(r)}
 }
 
+// LineGenerator will iterate through the reader returning
+// lines with the end-of-line chars removed
 func LineGenerator(r io.Reader) <-chan Line {
 	var ch = make(chan Line, 64)
 	go func() {
@@ -29,6 +31,26 @@ func LineGenerator(r io.Reader) <-chan Line {
 				ch <- line[:len(line)-2]
 			} else {
 				ch <- line[:len(line)-1]
+			}
+			line, err = br.ReadBytes('\n')
+		}
+		close(ch)
+	}()
+	return ch
+}
+
+// FieldsGenerator will iterate through the reader splitting
+// each line into fields and returning them through a channel
+func FieldsGenerator(r io.Reader, delim []byte) <-chan []Field {
+	var ch = make(chan []Field, 64)
+	go func() {
+		var br = bufio.NewReader(r)
+		line, err := br.ReadBytes('\n')
+		for err == nil {
+			if len(line) > 1 && line[len(line)-2] == '\r' {
+				ch <- Line(line[:len(line)-2]).SplitFields(delim)
+			} else {
+				ch <- Line(line[:len(line)-1]).SplitFields(delim)
 			}
 			line, err = br.ReadBytes('\n')
 		}

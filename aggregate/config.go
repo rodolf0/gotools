@@ -4,49 +4,67 @@ import (
 	"stream"
 )
 
-type AggSpec struct {
+type Aggregation struct {
 	Keys    []int
 	Pivots  []int
 	Aggs    []int
 	AggCtor []func() Aggregator
+	Data    map[string][]Aggregator
+	Header  []string
+	Delim   []byte
 }
 
-func Configure(Keys, Pivots *string, Aggs map[string]*string, IdxMap map[string]int, SubDelim *string) AggSpec {
+func Configure(Keys, Pivots *string, Aggs map[string]*string, Delim, SubDelim *string, header stream.Line) *Aggregation {
 
-	var aggspec AggSpec
+	var a = &Aggregation{
+		Data:  make(map[string][]Aggregator),
+		Delim: []byte(*Delim),
+	}
+
+	var IdxMap = header.IndexMap([]byte(*Delim))
 
 	for _, k := range stream.Line(*Keys).SplitFields([]byte{','}) {
-		aggspec.Keys = append(aggspec.Keys, IdxMap[string(k)])
+		a.Keys = append(a.Keys, IdxMap[string(k)])
+		a.Header = append(a.Header, string(k))
 	}
 
 	for _, p := range stream.Line(*Pivots).SplitFields([]byte{','}) {
-		aggspec.Pivots = append(aggspec.Pivots, IdxMap[string(p)])
+		a.Pivots = append(a.Pivots, IdxMap[string(p)])
 	}
 
 	for agg_type, agg_cols := range Aggs {
 		for _, col := range stream.Line(*agg_cols).SplitFields([]byte{','}) {
 
-			aggspec.Aggs = append(aggspec.Aggs, IdxMap[string(col)])
+			a.Aggs = append(a.Aggs, IdxMap[string(col)])
+
 			switch agg_type {
 			case "Counter":
-				aggspec.AggCtor = append(aggspec.AggCtor, func() Aggregator { return new(Counter) })
+				a.AggCtor = append(a.AggCtor, func() Aggregator { return new(Counter) })
+				a.Header = append(a.Header, string(col)+"-Cnt")
 			case "Adder":
-				aggspec.AggCtor = append(aggspec.AggCtor, func() Aggregator { return new(Adder) })
+				a.AggCtor = append(a.AggCtor, func() Aggregator { return new(Adder) })
+				a.Header = append(a.Header, string(col)+"-Sum")
 			case "Averager":
-				aggspec.AggCtor = append(aggspec.AggCtor, func() Aggregator { return &Averager{0.0, 0} })
+				a.AggCtor = append(a.AggCtor, func() Aggregator { return &Averager{0.0, 0} })
+				a.Header = append(a.Header, string(col)+"-Avg")
 			case "Miner":
-				aggspec.AggCtor = append(aggspec.AggCtor, func() Aggregator { return &Miner{0.0, false} })
+				a.AggCtor = append(a.AggCtor, func() Aggregator { return &Miner{0.0, false} })
+				a.Header = append(a.Header, string(col)+"-Min")
 			case "Maxer":
-				aggspec.AggCtor = append(aggspec.AggCtor, func() Aggregator { return &Maxer{0.0, false} })
+				a.AggCtor = append(a.AggCtor, func() Aggregator { return &Maxer{0.0, false} })
+				a.Header = append(a.Header, string(col)+"-Max")
 			case "Firster":
-				aggspec.AggCtor = append(aggspec.AggCtor, func() Aggregator { return new(Firster) })
+				a.AggCtor = append(a.AggCtor, func() Aggregator { return new(Firster) })
+				a.Header = append(a.Header, string(col)+"-Fst")
 			case "Laster":
-				aggspec.AggCtor = append(aggspec.AggCtor, func() Aggregator { return new(Laster) })
+				a.AggCtor = append(a.AggCtor, func() Aggregator { return new(Laster) })
+				a.Header = append(a.Header, string(col)+"-Lst")
 			case "Concater":
-				aggspec.AggCtor = append(aggspec.AggCtor, func() Aggregator { return &Concater{nil, []byte(*SubDelim)} })
+				a.AggCtor = append(a.AggCtor, func() Aggregator { return &Concater{nil, []byte(*SubDelim)} })
+				a.Header = append(a.Header, string(col)+"-Cat")
 			}
 		}
 	}
 
-	return aggspec
+	return a
 }
