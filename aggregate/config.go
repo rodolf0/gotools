@@ -24,18 +24,30 @@ func Configure(Keys, Pivots *string, Aggs map[string]*string, Delim, SubDelim *s
 	var IdxMap = header.IndexMap([]byte(*Delim))
 
 	for _, k := range stream.Line(*Keys).SplitFields([]byte{','}) {
-		a.Keys = append(a.Keys, IdxMap[string(k)])
+		idx, ok := IdxMap[string(k)]
+		if !ok {
+			panic("No column named " + string(k))
+		}
+		a.Keys = append(a.Keys, idx)
 		a.Header = append(a.Header, string(k))
 	}
 
 	for _, p := range stream.Line(*Pivots).SplitFields([]byte{','}) {
-		a.Pivots = append(a.Pivots, IdxMap[string(p)])
+		idx, ok := IdxMap[string(p)]
+		if !ok {
+			panic("No column named " + string(p))
+		}
+		a.Pivots = append(a.Pivots, idx)
 	}
 
 	for agg_type, agg_cols := range Aggs {
 		for _, col := range stream.Line(*agg_cols).SplitFields([]byte{','}) {
 
-			a.Aggs = append(a.Aggs, IdxMap[string(col)])
+			idx, ok := IdxMap[string(col)]
+			if !ok {
+				panic("No column named " + string(col))
+			}
+			a.Aggs = append(a.Aggs, idx)
 
 			switch agg_type {
 			case "Counter":
