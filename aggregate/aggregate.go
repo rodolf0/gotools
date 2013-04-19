@@ -3,38 +3,55 @@ package aggregate
 import (
 	"io"
 	"stream"
+	"sync"
 )
 
 func (a *Aggregation) AggregateStream(input <-chan stream.Line) {
-	for line := range input {
-		var fields = line.SplitFields(a.Delim)
-		var key = string(stream.JoinSomeFields(a.Delim, fields, a.Keys))
-		var pivot = ""
-		if len(a.Pivots) > 0 {
-			pivot = string(stream.JoinSomeFields(a.SubDelim, fields, a.Pivots))
-		}
 
-		var keyagg, ok1 = a.Data[key]
-		if !ok1 {
-			keyagg = make(map[string][]Aggregator)
-			a.Data[key] = keyagg
-		}
+	var wg sync.WaitGroup
+	wg.Add(6)
 
-		var agg, ok2 = keyagg[pivot]
+	var m sync.Mutex
 
-		if !ok2 {
-			agg = make([]Aggregator, len(a.AggCtor))
-			for i, ctor := range a.AggCtor {
-				agg[i] = ctor()
+	for x := 0; x < 6; x++ {
+		go func() {
+			for line := range input {
+				var fields = line.SplitFields(a.Delim)
+				var key = string(stream.JoinSomeFields(a.Delim, fields, a.Keys))
+				var pivot = ""
+				if len(a.Pivots) > 0 {
+					pivot = string(stream.JoinSomeFields(a.SubDelim, fields, a.Pivots))
+				}
+
+				m.Lock()
+				var keyagg, ok1 = a.Data[key]
+				if !ok1 {
+					keyagg.d = make(map[string][]Aggregator)
+					a.Data[key] = keyagg
+				}
+				m.Unlock()
+
+				keyagg.Lock()
+				var agg, ok2 = keyagg.d[pivot]
+				if !ok2 {
+					agg = make([]Aggregator, len(a.AggCtor))
+					for i, ctor := range a.AggCtor {
+						agg[i] = ctor()
+					}
+					keyagg.d[pivot] = agg
+					a.PivsHeader[pivot] = true
+				}
+
+				for i, agtor := range agg {
+					agtor.Aggregate(fields[a.Aggs[i]])
+				}
+				keyagg.Unlock()
+
 			}
-			keyagg[pivot] = agg
-			a.PivsHeader[pivot] = true
-		}
-
-		for i, agtor := range agg {
-			agtor.Aggregate(fields[a.Aggs[i]])
-		}
+			wg.Done()
+		}()
 	}
+	wg.Wait()
 }
 
 func (a *Aggregation) printHeaderKeys(out io.Writer) {
@@ -108,7 +125,7 @@ func (a *Aggregation) Print(out io.Writer) {
 				if i > 0 {
 					out.Write(a.Delim)
 				}
-				if pivaggs, ok := agg[pivot]; ok {
+				if pivaggs, ok := agg.d[pivot]; ok {
 					for j, val := range pivaggs {
 						if j > 0 {
 							out.Write(a.Delim)
