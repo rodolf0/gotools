@@ -5,20 +5,26 @@ import (
 )
 
 type Aggregation struct {
-	Keys    []int
-	Pivots  []int
-	Aggs    []int
-	AggCtor []func() Aggregator
-	Data    map[string][]Aggregator
-	Header  []string
-	Delim   []byte
+	Keys       []int
+	Pivots     []int
+	Aggs       []int
+	AggCtor    []func() Aggregator
+	Data       map[string]map[string][]Aggregator
+	KeysHeader []string
+	AggsHeader []string
+	PivsHeader map[string]bool
+	Delim      []byte
+	SubDelim   []byte
+	NullVal    []byte
 }
 
 func Configure(Keys, Pivots *string, Aggs map[string]*string, Delim, SubDelim *string, header stream.Line) *Aggregation {
 
 	var a = &Aggregation{
-		Data:  make(map[string][]Aggregator),
-		Delim: []byte(*Delim),
+		Data:       make(map[string]map[string][]Aggregator),
+		PivsHeader: make(map[string]bool),
+		Delim:      []byte(*Delim),
+		SubDelim:   []byte(*SubDelim),
 	}
 
 	var IdxMap = header.IndexMap([]byte(*Delim))
@@ -29,7 +35,7 @@ func Configure(Keys, Pivots *string, Aggs map[string]*string, Delim, SubDelim *s
 			panic("No column named " + string(k))
 		}
 		a.Keys = append(a.Keys, idx)
-		a.Header = append(a.Header, string(k))
+		a.KeysHeader = append(a.KeysHeader, string(k))
 	}
 
 	for _, p := range stream.Line(*Pivots).SplitFields([]byte{','}) {
@@ -52,28 +58,28 @@ func Configure(Keys, Pivots *string, Aggs map[string]*string, Delim, SubDelim *s
 			switch agg_type {
 			case "Counter":
 				a.AggCtor = append(a.AggCtor, func() Aggregator { return new(Counter) })
-				a.Header = append(a.Header, string(col)+"-Cnt")
+				a.AggsHeader = append(a.AggsHeader, string(col)+"-Cnt")
 			case "Adder":
 				a.AggCtor = append(a.AggCtor, func() Aggregator { return new(Adder) })
-				a.Header = append(a.Header, string(col)+"-Sum")
+				a.AggsHeader = append(a.AggsHeader, string(col)+"-Sum")
 			case "Averager":
 				a.AggCtor = append(a.AggCtor, func() Aggregator { return &Averager{0.0, 0} })
-				a.Header = append(a.Header, string(col)+"-Avg")
+				a.AggsHeader = append(a.AggsHeader, string(col)+"-Avg")
 			case "Miner":
 				a.AggCtor = append(a.AggCtor, func() Aggregator { return &Miner{0.0, false} })
-				a.Header = append(a.Header, string(col)+"-Min")
+				a.AggsHeader = append(a.AggsHeader, string(col)+"-Min")
 			case "Maxer":
 				a.AggCtor = append(a.AggCtor, func() Aggregator { return &Maxer{0.0, false} })
-				a.Header = append(a.Header, string(col)+"-Max")
+				a.AggsHeader = append(a.AggsHeader, string(col)+"-Max")
 			case "Firster":
 				a.AggCtor = append(a.AggCtor, func() Aggregator { return new(Firster) })
-				a.Header = append(a.Header, string(col)+"-Fst")
+				a.AggsHeader = append(a.AggsHeader, string(col)+"-Fst")
 			case "Laster":
 				a.AggCtor = append(a.AggCtor, func() Aggregator { return new(Laster) })
-				a.Header = append(a.Header, string(col)+"-Lst")
+				a.AggsHeader = append(a.AggsHeader, string(col)+"-Lst")
 			case "Concater":
 				a.AggCtor = append(a.AggCtor, func() Aggregator { return &Concater{nil, []byte(*SubDelim)} })
-				a.Header = append(a.Header, string(col)+"-Cat")
+				a.AggsHeader = append(a.AggsHeader, string(col)+"-Cat")
 			}
 		}
 	}
