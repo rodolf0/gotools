@@ -102,7 +102,7 @@ func JoinFields(delim []byte, fields []Field) Line {
 	}
 	var line = make([]byte, 0, n+len(delim)*(len(fields)-1))
 	n = copy(line, fields[0])
-	for _, field := range fields {
+	for _, field := range fields[1:] {
 		n += copy(line[n:], delim)
 		n += copy(line[n:], field)
 	}
