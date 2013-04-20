@@ -2,20 +2,14 @@ package aggregate
 
 import (
 	"stream"
-	"sync"
 )
-
-type _agg_ struct {
-	d map[string][]Aggregator
-	sync.Mutex
-}
 
 type Aggregation struct {
 	Keys       []int
 	Pivots     []int
 	Aggs       []int
 	AggCtor    []func() Aggregator
-	Data       map[string]_agg_
+	Data       map[string]map[string][]Aggregator
 	KeysHeader []string
 	AggsHeader []string
 	PivsHeader map[string]bool
@@ -27,7 +21,7 @@ type Aggregation struct {
 func Configure(Keys, Pivots *string, Aggs map[string]*string, Delim, SubDelim *string, header stream.Line) *Aggregation {
 
 	var a = &Aggregation{
-		Data:       make(map[string]_agg_),
+		Data:       make(map[string]map[string][]Aggregator),
 		PivsHeader: make(map[string]bool),
 		Delim:      []byte(*Delim),
 		SubDelim:   []byte(*SubDelim),

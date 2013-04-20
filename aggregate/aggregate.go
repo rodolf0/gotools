@@ -8,50 +8,90 @@ import (
 
 func (a *Aggregation) AggregateStream(input <-chan stream.Line) {
 
-	var wg sync.WaitGroup
-	wg.Add(6)
+	var wg1, wg2 sync.WaitGroup
+
+	const partition = 4
+
+	wg1.Add(partition)
+	wg2.Add(partition)
+
+	var aggmux [partition]chan []stream.Field
+
+	for g := 0; g < partition; g++ {
+		aggmux[g] = make(chan []stream.Field)
+	}
 
 	var m sync.Mutex
 
-	for x := 0; x < 6; x++ {
-		go func() {
-			for line := range input {
-				var fields = line.SplitFields(a.Delim)
+	for g := 0; g < partition; g++ {
+		go func(am_i int) {
+			var localagg = make(map[string]map[string][]Aggregator)
+			var pivheader = make(map[string]bool)
+
+			for fields := range aggmux[am_i] {
 				var key = string(stream.JoinSomeFields(a.Delim, fields, a.Keys))
 				var pivot = ""
 				if len(a.Pivots) > 0 {
 					pivot = string(stream.JoinSomeFields(a.SubDelim, fields, a.Pivots))
 				}
 
-				m.Lock()
-				var keyagg, ok1 = a.Data[key]
+				var keyagg, ok1 = localagg[key]
 				if !ok1 {
-					keyagg.d = make(map[string][]Aggregator)
-					a.Data[key] = keyagg
+					keyagg = make(map[string][]Aggregator)
+					localagg[key] = keyagg
 				}
-				m.Unlock()
 
-				keyagg.Lock()
-				var agg, ok2 = keyagg.d[pivot]
+				var agg, ok2 = keyagg[pivot]
 				if !ok2 {
 					agg = make([]Aggregator, len(a.AggCtor))
 					for i, ctor := range a.AggCtor {
 						agg[i] = ctor()
 					}
-					keyagg.d[pivot] = agg
-					a.PivsHeader[pivot] = true
+					keyagg[pivot] = agg
+					pivheader[pivot] = true
 				}
 
 				for i, agtor := range agg {
 					agtor.Aggregate(fields[a.Aggs[i]])
 				}
-				keyagg.Unlock()
-
 			}
-			wg.Done()
+
+			m.Lock()
+			for k, v := range localagg {
+				a.Data[k] = v
+			}
+			for k, _ := range pivheader {
+				a.PivsHeader[k] = true
+			}
+			m.Unlock()
+
+			wg2.Done()
+		}(g)
+	}
+
+	for g := 0; g < partition; g++ {
+		go func() {
+			for line := range input {
+				var fields = line.SplitFields(a.Delim)
+				// hash key
+				var hash = byte(33)
+				for _, i := range a.Keys {
+					for _, b := range fields[i] {
+						hash ^= b
+					}
+				}
+				aggmux[hash%partition] <- fields
+			}
+			wg1.Done()
 		}()
 	}
-	wg.Wait()
+
+	// once all lines are consumed shut down aggregators
+	wg1.Wait()
+	for g := 0; g < partition; g++ {
+		close(aggmux[g])
+	}
+	wg2.Wait()
 }
 
 func (a *Aggregation) printHeaderKeys(out io.Writer) {
@@ -125,7 +165,7 @@ func (a *Aggregation) Print(out io.Writer) {
 				if i > 0 {
 					out.Write(a.Delim)
 				}
-				if pivaggs, ok := agg.d[pivot]; ok {
+				if pivaggs, ok := agg[pivot]; ok {
 					for j, val := range pivaggs {
 						if j > 0 {
 							out.Write(a.Delim)
