@@ -8,17 +8,16 @@ import (
 
 func (a *Aggregation) AggregateStream(input <-chan stream.Line) {
 
-	var wg1, wg2 sync.WaitGroup
+	var wg2 sync.WaitGroup
 
 	const partition = 4
 
-	wg1.Add(partition)
 	wg2.Add(partition)
 
 	var aggmux [partition]chan []stream.Field
 
 	for g := 0; g < partition; g++ {
-		aggmux[g] = make(chan []stream.Field)
+		aggmux[g] = make(chan []stream.Field, 1024)
 	}
 
 	var m sync.Mutex
@@ -69,25 +68,18 @@ func (a *Aggregation) AggregateStream(input <-chan stream.Line) {
 		}(g)
 	}
 
-	for g := 0; g < partition; g++ {
-		go func() {
-			for line := range input {
-				var fields = line.SplitFields(a.Delim)
-				// hash key
-				var hash = byte(33)
-				for _, i := range a.Keys {
-					for _, b := range fields[i] {
-						hash ^= b
-					}
-				}
-				aggmux[hash%partition] <- fields
+	for line := range input {
+		var fields = line.SplitFields(a.Delim)
+		// hash key
+		var hash = int64(5381)
+		for _, i := range a.Keys {
+			for _, b := range fields[i] {
+				hash = (hash << 5) + hash + int64(b)
 			}
-			wg1.Done()
-		}()
+		}
+		aggmux[hash%partition] <- fields
 	}
 
-	// once all lines are consumed shut down aggregators
-	wg1.Wait()
 	for g := 0; g < partition; g++ {
 		close(aggmux[g])
 	}

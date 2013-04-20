@@ -22,7 +22,7 @@ func NewReader(r io.Reader) *Reader {
 // LineGenerator will iterate through the reader returning
 // lines with the end-of-line chars removed
 func LineGenerator(r io.Reader) <-chan Line {
-	var ch = make(chan Line, 64)
+	var ch = make(chan Line, 4096)
 	go func() {
 		var br = bufio.NewReader(r)
 		line, err := br.ReadBytes('\n')

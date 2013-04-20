@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"flag"
 	"os"
+	"runtime"
 	"stream"
 )
 
@@ -24,6 +25,10 @@ var Aggs = map[string]*string{
 	"Firster":  flag.String("f", "", "First fields"),
 	"Laster":   flag.String("l", "", "Last fields"),
 	"Concater": flag.String("t", "", "Concat fields"),
+}
+
+func init() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
 }
 
 func main() {
