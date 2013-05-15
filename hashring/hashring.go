@@ -4,8 +4,8 @@
 package hashring
 
 import (
-	"bisect"
 	"crypto/sha1"
+	"github.com/ungerik/golibs/bisect"
 	"strconv"
 	"sync"
 )
@@ -122,11 +122,11 @@ func (r *HashRing) NodeKeys(n Node, replica uint) (start, end Key) {
 	var key = r.virtualNodeKey(n, replica)
 	r.Lock()
 	var idx = bisect.Bisect(r.sorted_keys, key)
-	end = r.sorted_keys[idx % len(r.sorted_keys)].(Key)
+	end = r.sorted_keys[idx%len(r.sorted_keys)].(Key)
 	if idx == 0 {
 		start = r.sorted_keys[len(r.sorted_keys)-1].(Key)
 	} else {
-		start = r.sorted_keys[idx - 1].(Key)
+		start = r.sorted_keys[idx-1].(Key)
 	}
 	r.Unlock()
 	return
