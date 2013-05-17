@@ -5,7 +5,7 @@ package hashring
 
 import (
 	"crypto/sha1"
-	"github.com/ungerik/golibs/bisect"
+	"github.com/warlockcc/golibs/bisect"
 	"strconv"
 	"sync"
 )
