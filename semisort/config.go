@@ -37,7 +37,7 @@ func Config(sortspec string) ([]SortSpec, error) {
 				numeric = true
 			}
 		}
-		sp = append(sp, SortSpec{field-1, reverse, numeric})
+		sp = append(sp, SortSpec{field - 1, reverse, numeric})
 	}
 	return sp, nil
 }

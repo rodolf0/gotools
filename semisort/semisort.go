@@ -3,9 +3,9 @@ package main
 import (
 	"bytes"
 	"flag"
-	"util"
 	"os"
 	"sort"
+	"util"
 )
 
 var Delim = flag.String("d", ",", "Field delimiter")
@@ -13,7 +13,6 @@ var Keys = flag.String("k", "", "Sort keys (eg: 2,1r,3rn,4n")
 var WinSz = flag.Int("s", 2048, "Window size")
 var delim []byte
 var sspec []SortSpec
-
 
 func init() {
 	flag.Parse()
@@ -24,7 +23,6 @@ func init() {
 		panic(err)
 	}
 }
-
 
 func rowcmp(a, b *util.Row) int {
 	for _, key := range sspec {
@@ -54,7 +52,6 @@ func rowcmp(a, b *util.Row) int {
 	return 0
 }
 
-
 func semisort(row *util.Row, window *[]*util.Row) {
 	// find insertion point (put lowest last to trim window)
 	i := sort.Search(len(*window), func(j int) bool {
@@ -67,7 +64,6 @@ func semisort(row *util.Row, window *[]*util.Row) {
 		(*window)[i] = row
 	}
 }
-
 
 func main() {
 	win := make([]*util.Row, 0, *WinSz)

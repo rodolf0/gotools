@@ -1,11 +1,11 @@
 package util
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
-	"strconv"
-	"bufio"
 	"io"
+	"strconv"
 )
 
 type Row struct {
@@ -22,12 +22,12 @@ func MakeRow(data, delim []byte) (r Row) {
 }
 
 // RowReader pumps rows built by reading from 'in' to 'out'
-func RowReader(in io.Reader,  out chan<- Row, delim []byte, done <-chan struct{}) {
+func RowReader(in io.Reader, out chan<- Row, delim []byte, done <-chan struct{}) {
 	for scanner := bufio.NewScanner(in); scanner.Scan(); {
 		select {
-			case out <-MakeRow(scanner.Bytes(), delim):
-			case <-done:
-				return
+		case out <- MakeRow(scanner.Bytes(), delim):
+		case <-done:
+			return
 		}
 	}
 }
@@ -67,7 +67,6 @@ func (r *Row) markFields(n int) error {
 	return nil
 }
 
-
 func (r *Row) Bytes(idx int) ([]byte, error) {
 	if idx < 0 {
 		return nil, errors.New("Negative index")
@@ -81,7 +80,6 @@ func (r *Row) Bytes(idx int) ([]byte, error) {
 	return r.Data[:r.delims[idx]], nil
 }
 
-
 func (r *Row) String(index int) (string, error) {
 	field, err := r.Bytes(index)
 	if err == nil {
@@ -89,7 +87,6 @@ func (r *Row) String(index int) (string, error) {
 	}
 	return "", err
 }
-
 
 func (r *Row) Int(index int) (int, error) {
 	field, err := r.Bytes(index)
