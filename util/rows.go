@@ -1,10 +1,8 @@
 package util
 
 import (
-	"bufio"
 	"bytes"
 	"errors"
-	"io"
 	"strconv"
 )
 
@@ -19,17 +17,6 @@ func MakeRow(data, delim []byte) (r Row) {
 	r.delim = delim
 	copy(r.Data, data)
 	return
-}
-
-// RowReader pumps rows built by reading from 'in' to 'out'
-func RowReader(in io.Reader, out chan<- Row, delim []byte, done <-chan struct{}) {
-	for scanner := bufio.NewScanner(in); scanner.Scan(); {
-		select {
-		case out <- MakeRow(scanner.Bytes(), delim):
-		case <-done:
-			return
-		}
-	}
 }
 
 // markFields finds the indexes where 'delim' marks fields separation.

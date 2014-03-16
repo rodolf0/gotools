@@ -67,16 +67,10 @@ func semisort(row *util.Row, window *[]*util.Row) {
 
 func main() {
 	win := make([]*util.Row, 0, *WinSz)
-	rows := make(chan util.Row)
 	done := make(chan struct{})
 	defer close(done)
 
-	go func() {
-		defer close(rows)
-		for in := range util.OpenFiles(flag.Args(), done) {
-			util.RowReader(in, rows, delim, done)
-		}
-	}()
+	rows := util.Files2Rows(flag.Args(), delim, done)
 
 	// fill sort-window
 	for len(win) < cap(win) {
