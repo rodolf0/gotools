@@ -13,10 +13,12 @@ var Keys = flag.String("k", "", "Sort keys (eg: 2,1r,3rn,4n")
 var WinSz = flag.Int("s", 2048, "Window size")
 var delim []byte
 var sspec []SortSpec
+var sortwin []*util.Row
 
 func init() {
 	flag.Parse()
 	delim = []byte(*Delim)
+	sortwin = make([]*util.Row, 0, *WinSz)
 	var err error
 	sspec, err = Config(*Keys)
 	if err != nil {
@@ -52,42 +54,40 @@ func rowcmp(a, b *util.Row) int {
 	return 0
 }
 
-func semisort(row *util.Row, window *[]*util.Row) {
+func semisort(row *util.Row) {
 	// find insertion point (put lowest last to trim window)
-	i := sort.Search(len(*window), func(j int) bool {
-		return rowcmp(row, (*window)[j]) > 0
+	i := sort.Search(len(sortwin), func(j int) bool {
+		return rowcmp(row, sortwin[j]) > 0
 	})
 	// add row at the end... use as side effect to grow slice for 'copy'
-	*window = append(*window, row)
-	if i < len(*window) {
-		copy((*window)[i+1:], (*window)[i:])
-		(*window)[i] = row
+	sortwin = append(sortwin, row)
+	if i < len(sortwin) {
+		copy(sortwin[i+1:], sortwin[i:])
+		sortwin[i] = row
 	}
 }
 
 func main() {
-	win := make([]*util.Row, 0, *WinSz)
 	done := make(chan struct{})
 	defer close(done)
-
 	rows := util.Files2Rows(flag.Args(), delim, done)
 
 	// fill sort-window
-	for len(win) < cap(win) {
-		if row, ok := <-rows; !ok {
-			break
+	for len(sortwin) < cap(sortwin) {
+		if row, ok := <-rows; ok {
+			semisort(&row)
 		} else {
-			semisort(&row, &win)
+			break
 		}
 	}
 	// sort-n-flush window
 	var flushrow *util.Row
-	for len(win) > 0 {
-		win, flushrow = win[:len(win)-1], win[len(win)-1]
+	for len(sortwin) > 0 {
+		sortwin, flushrow = sortwin[:len(sortwin)-1], sortwin[len(sortwin)-1]
 		os.Stdout.Write(flushrow.Data)
 		os.Stdout.Write([]byte("\n"))
 		if row, ok := <-rows; ok {
-			semisort(&row, &win)
+			semisort(&row)
 		}
 	}
 }
