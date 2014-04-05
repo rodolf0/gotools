@@ -6,6 +6,11 @@ import (
 	"strconv"
 )
 
+var (
+	ErrorFieldNotFound = errors.New("Field not found")
+	ErrorNegativeIndex = errors.New("Negative Index")
+)
+
 type Row struct {
 	Data   []byte
 	delims []int
@@ -19,52 +24,35 @@ func MakeRow(data, delim []byte) (r Row) {
 	return
 }
 
-// markFields finds the indexes where 'delim' marks fields separation.
-// Field indexes are 0-based
-func (r *Row) markFields(n int) error {
-	if len(r.delims) > n {
-		return nil
-	}
-	// figure out where to start searching for the next delimiter
+func (r *Row) markdelims() {
 	start := 0
-	if len(r.delims) > 0 {
-		start = r.delims[len(r.delims)-1] + len(r.delim)
-	} else {
-		r.delims = make([]int, 0, n+1)
-	}
-	// search for as many delimiters as needed to reach one past field n
-	if start+len(r.delim) < len(r.Data) {
-		for len(r.delims) <= n {
-			if idx := bytes.Index(r.Data[start:], r.delim); idx != -1 {
-				r.delims = append(r.delims, start+idx)
-				start += idx + len(r.delim)
-			} else {
-				r.delims = append(r.delims, len(r.Data))
-				break
-			}
+	for start+len(r.delim) <= len(r.Data) {
+		idx := bytes.Index(r.Data[start:], r.delim)
+		if idx == -1 {
+			break
 		}
-	} else {
-		// next delim doesn't fit in data: we're at the end
-		r.delims = append(r.delims, len(r.Data))
+		r.delims = append(r.delims, start+idx)
+		start += idx + len(r.delim)
 	}
-	// error if we still have fewer delims than needed
-	if len(r.delims) <= n {
-		return errors.New("Field not found")
-	}
-	return nil
+	r.delims = append(r.delims, len(r.Data))
 }
 
+// Bytes returns slices to the underlying row data without copying
 func (r *Row) Bytes(idx int) ([]byte, error) {
 	if idx < 0 {
-		return nil, errors.New("Negative index")
+		return nil, ErrorNegativeIndex
 	}
-	if err := r.markFields(idx); err != nil {
-		return nil, err
+	if len(r.delims) == 0 {
+		r.markdelims()
 	}
+	if idx >= len(r.delims) {
+		return nil, ErrorFieldNotFound
+	}
+	start := 0
 	if idx > 0 {
-		return r.Data[r.delims[idx-1]+len(r.delim) : r.delims[idx]], nil
+		start = r.delims[idx-1] + len(r.delim)
 	}
-	return r.Data[:r.delims[idx]], nil
+	return r.Data[start:r.delims[idx]], nil
 }
 
 func (r *Row) String(index int) (string, error) {
@@ -81,4 +69,22 @@ func (r *Row) Int(index int) (int, error) {
 		return strconv.Atoi(string(field))
 	}
 	return 0, err
+}
+
+func (r *Row) JoinF(fields []int, delim []byte) ([]byte, error) {
+	if len(fields) == 0 {
+		return nil, nil
+	}
+	j := make([]byte, 0, len(r.Data)/2)
+	for i, f := range fields {
+		if field, err := r.Bytes(f); err == nil {
+			if i > 0 && len(delim) > 0 {
+				j = append(j, delim...)
+			}
+			j = append(j, field...)
+		} else {
+			return nil, err
+		}
+	}
+	return j, nil
 }

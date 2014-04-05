@@ -1,126 +1,154 @@
-package aggregate
+package main
 
 import (
+	"bufio"
+	"flag"
 	"io"
-	"stream"
+	"os"
+	"util"
 )
 
-func (a *Aggregation) AggregateStream(input <-chan stream.Line) {
-	for line := range input {
-		var fields = line.SplitFields(a.Delim)
-		var key = string(stream.JoinSomeFields(a.Delim, fields, a.Keys))
-		var pivot = ""
-		if len(a.Pivots) > 0 {
-			pivot = string(stream.JoinSomeFields(a.SubDelim, fields, a.Pivots))
-		}
+var aggspec AggSpec
+var HeaderPivots map[string]struct{}
+var Aggregations map[string]map[string][]Aggregator
 
-		var keyagg, ok1 = a.Data[key]
-		if !ok1 {
-			keyagg = make(map[string][]Aggregator)
-			a.Data[key] = keyagg
-		}
-
-		var agg, ok2 = keyagg[pivot]
-
-		if !ok2 {
-			agg = make([]Aggregator, len(a.AggCtor))
-			for i, ctor := range a.AggCtor {
-				agg[i] = ctor()
-			}
-			keyagg[pivot] = agg
-			a.PivsHeader[pivot] = true
-		}
-
-		for i, agtor := range agg {
-			agtor.Aggregate(fields[a.Aggs[i]])
-		}
-	}
+func init() {
+	HeaderPivots = make(map[string]struct{})
+	Aggregations = make(map[string]map[string][]Aggregator)
 }
 
-func (a *Aggregation) printHeaderKeys(out io.Writer) {
-	for i, kheader := range a.KeysHeader {
-		if i > 0 {
-			out.Write(a.Delim)
-		}
-		out.Write([]byte(kheader))
-	}
-}
+func main() {
+	done := make(chan struct{})
+	defer close(done)
+	rows := util.Files2Rows(flag.Args(), Delim, done)
 
-func (a *Aggregation) printHeaderPivots(out io.Writer, pivots []string) {
-	for i, pivot := range pivots {
-		if i > 0 {
-			out.Write(a.Delim)
-		}
-		for j, aheader := range a.AggsHeader {
-			if j > 0 {
-				out.Write(a.Delim)
-			}
-			out.Write([]byte(pivot + ":" + aheader))
-		}
-	}
-}
-
-func (a *Aggregation) printHeaderAggs(out io.Writer) {
-	for i, aheader := range a.AggsHeader {
-		if i > 0 {
-			out.Write(a.Delim)
-		}
-		out.Write([]byte(aheader))
-	}
-}
-
-func (a *Aggregation) printHeader(out io.Writer, pivots []string) {
-	if len(a.Keys) > 0 {
-		a.printHeaderKeys(out)
-	}
-	if len(a.Keys) > 0 && len(a.Aggs) > 0 {
-		out.Write(a.Delim)
-	}
-	if len(a.Aggs) > 0 {
-		if len(a.Pivots) > 0 {
-			a.printHeaderPivots(out, pivots)
+	var headermap map[string]int
+	if !*noheader {
+		if header, ok := <-rows; ok {
+			headermap = util.HeaderMap(header)
 		} else {
-			a.printHeaderAggs(out)
+			return
 		}
 	}
+	aggspec = Config(Keys, Pivots, Aggs, headermap)
+
+	// Aggregate rows
+	for row := range rows {
+		key, err := row.JoinF(aggspec.Keys, Delim)
+		if err != nil {
+			panic(err)
+		}
+		pivot, err := row.JoinF(aggspec.Pivots, SubDelim)
+		if err != nil {
+			panic(err)
+		}
+
+		skey := string(key)
+		pivots, p_ok := Aggregations[skey]
+		// initialize pivots for this key
+		if !p_ok {
+			pivots = make(map[string][]Aggregator)
+			Aggregations[skey] = pivots
+		}
+		spivot := string(pivot)
+		aggs, a_ok := pivots[spivot]
+		// initialize aggregators for this pivot
+		if !a_ok {
+			aggs = make([]Aggregator, len(aggspec.AggCtor))
+			for i, ctor := range aggspec.AggCtor {
+				aggs[i] = ctor()
+			}
+			pivots[spivot] = aggs
+			HeaderPivots[spivot] = struct{}{} // collect pivots
+		}
+
+		for i, agtor := range aggs {
+			field_i := aggspec.Aggs[i]
+			if field, err := row.Bytes(field_i); err == nil {
+				agtor.Aggregate(field)
+			} else {
+				panic(err)
+			}
+		}
+	}
+
+	var pivots []string
+	for p := range HeaderPivots {
+		pivots = append(pivots, p)
+	}
+	out := bufio.NewWriter(os.Stdout)
+	if !*noheader {
+		Header(out, pivots)
+	}
+	Print(out, pivots)
+	out.Flush()
+}
+
+func Header(out io.Writer, pivots []string) {
+	for i, k := range aggspec.KeysHeader {
+		if i > 0 {
+			out.Write(Delim)
+		}
+		out.Write([]byte(k))
+	}
+	if len(aggspec.Keys) > 0 && len(aggspec.Aggs) > 0 {
+		out.Write(Delim)
+	}
+	// if no aggs we're just condensing keys
+	if len(aggspec.Aggs) > 0 {
+		if len(aggspec.Pivots) > 0 {
+			// one aggregation per pivot value
+			for i, pivot := range pivots {
+				if i > 0 {
+					out.Write(Delim)
+				}
+				for j, k := range aggspec.AggsHeader {
+					if j > 0 {
+						out.Write(Delim)
+					}
+					out.Write([]byte(pivot + ":" + k))
+				}
+			}
+		} else {
+			// simple aggregation, no pivots
+			for i, k := range aggspec.AggsHeader {
+				if i > 0 {
+					out.Write(Delim)
+				}
+				out.Write([]byte(k))
+			}
+		}
+	}
+
 	out.Write([]byte{'\n'})
 }
 
-func (a *Aggregation) Print(out io.Writer) {
-	var pivots []string
-	for p := range a.PivsHeader {
-		pivots = append(pivots, p)
-	}
-
-	a.printHeader(out, pivots)
-
-	for key, agg := range a.Data {
-		if len(a.Keys) > 0 {
+func Print(out io.Writer, pivots []string) {
+	for key, agg := range Aggregations {
+		if len(aggspec.Keys) > 0 {
 			out.Write([]byte(key))
 		}
-
-		if len(a.Keys) > 0 && len(a.Aggs) > 0 {
-			out.Write(a.Delim)
+		if len(aggspec.Keys) > 0 && len(aggspec.Aggs) > 0 {
+			out.Write(Delim)
 		}
-
-		if len(a.Aggs) > 0 {
+		if len(aggspec.Aggs) > 0 {
 			for i, pivot := range pivots {
 				if i > 0 {
-					out.Write(a.Delim)
+					out.Write(Delim)
 				}
 				if pivaggs, ok := agg[pivot]; ok {
 					for j, val := range pivaggs {
 						if j > 0 {
-							out.Write(a.Delim)
+							out.Write(Delim)
 						}
 						out.Write([]byte(val.String()))
 					}
 				} else {
-					for j := 0; j < len(a.Aggs); j++ {
+					for j := 0; j < len(aggspec.Aggs); j++ {
 						if j > 0 {
-							out.Write(a.Delim)
+							out.Write(Delim)
 						}
-						out.Write(a.NullVal)
+						// out.Write(NullVal)
 					}
 				}
 			}
