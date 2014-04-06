@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"strconv"
 )
 
@@ -134,4 +135,26 @@ func (c *Concater) Aggregate(value []byte) {
 
 func (c Concater) String() string {
 	return string(c.buffer)
+}
+
+// Standard devs
+type Stdever struct {
+	sum  float64
+	ssum float64
+	num  uint64
+}
+
+func (s *Stdever) Aggregate(value []byte) {
+	var f, _ = strconv.ParseFloat(string(value), 64)
+	s.sum += f
+	s.ssum += f * f
+	s.num++
+}
+
+func (s Stdever) String() string {
+	if s.num != 0.0 {
+		avg := s.sum / float64(s.num)
+		return strconv.FormatFloat(math.Sqrt(s.ssum/float64(s.num)-avg*avg), 'g', 15, 64)
+	}
+	return "0"
 }
