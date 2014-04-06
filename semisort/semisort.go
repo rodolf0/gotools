@@ -70,7 +70,12 @@ func semisort(row *util.Row) {
 func main() {
 	done := make(chan struct{})
 	defer close(done)
-	rows := util.Files2Rows(flag.Args(), delim, done)
+	files := flag.Args()
+	if len(files) == 0 {
+		files = make([]string, 1)
+		files[0] = "-"
+	}
+	rows := util.Files2Rows(files, delim, done)
 
 	// fill sort-window
 	for len(sortwin) < cap(sortwin) {

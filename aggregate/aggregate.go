@@ -20,7 +20,12 @@ func init() {
 func main() {
 	done := make(chan struct{})
 	defer close(done)
-	rows := util.Files2Rows(flag.Args(), Delim, done)
+	files := flag.Args()
+	if len(files) == 0 {
+		files = make([]string, 1)
+		files[0] = "-"
+	}
+	rows := util.Files2Rows(files, Delim, done)
 
 	var headermap map[string]int
 	if !*noheader {
