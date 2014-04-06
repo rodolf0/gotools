@@ -11,15 +11,17 @@ var subdelim = flag.String("b", "|", "Field sub-delimiter")
 var Keys = flag.String("k", "", "Key fields")
 var Pivots = flag.String("p", "", "Pivot fields")
 var Aggs = map[string]*string{
-	"Adder":    flag.String("s", "", "Sum fields"),
-	"Averager": flag.String("a", "", "Average fields"),
-	"Concater": flag.String("t", "", "Concat fields"),
-	"Counter":  flag.String("c", "", "Count fields"),
-	"Firster":  flag.String("f", "", "First fields"),
-	"Laster":   flag.String("l", "", "Last fields"),
-	"Maxer":    flag.String("x", "", "Maximum fields"),
-	"Miner":    flag.String("n", "", "Minimum fields"),
-	"Stdever":  flag.String("e", "", "Minimum fields"),
+	"Adder":    flag.String("s", "", "Sum"),
+	"Averager": flag.String("a", "", "Average"),
+	"Concater": flag.String("t", "", "Concat"),
+	"Counter":  flag.String("c", "", "Count"),
+	"Firster":  flag.String("f", "", "First"),
+	"Laster":   flag.String("l", "", "Last"),
+	"Maxer":    flag.String("x", "", "Maximum"),
+	"Miner":    flag.String("n", "", "Minimum"),
+	"Stdever":  flag.String("e", "", "Stddev"),
+	"MAD":      flag.String("m", "", "Median absolute deviation"),
+	"Medianer": flag.String("i", "", "Median"),
 }
 var noheader = flag.Bool("H", false, "No header row")
 
@@ -110,6 +112,12 @@ func Config(keys, pivots *string, aggs map[string]*string, headermap map[string]
 			case "Stdever":
 				a.AggCtor = append(a.AggCtor, func() Aggregator { return &Stdever{0.0, 0.0, 0} })
 				a.AggsHeader = append(a.AggsHeader, k+"-Std")
+			case "Medianer":
+				a.AggCtor = append(a.AggCtor, func() Aggregator { return new(Medianer) })
+				a.AggsHeader = append(a.AggsHeader, k+"-Med")
+			case "MAD":
+				a.AggCtor = append(a.AggCtor, func() Aggregator { return new(MADer) })
+				a.AggsHeader = append(a.AggsHeader, k+"-MAD")
 			}
 		}
 	}

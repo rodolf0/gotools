@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bisect"
 	"math"
 	"strconv"
 )
@@ -157,4 +158,64 @@ func (s Stdever) String() string {
 		return strconv.FormatFloat(math.Sqrt(s.ssum/float64(s.num)-avg*avg), 'g', 15, 64)
 	}
 	return "0"
+}
+
+// Medianer
+type mEl float64
+
+func (m mEl) Less(other bisect.Elem) bool {
+	return m < other.(mEl)
+}
+
+type Medianer struct {
+	el []bisect.Elem
+}
+
+func (m *Medianer) Aggregate(value []byte) {
+	var f, _ = strconv.ParseFloat(string(value), 64)
+	m.el = bisect.Insort(m.el, mEl(f))
+}
+
+func (m *Medianer) String() string {
+	return strconv.FormatFloat(m.Float64(), 'g', 15, 64)
+}
+
+func (m *Medianer) Float64() float64 {
+	if len(m.el) > 0 {
+		var med float64
+		if len(m.el)%2 == 0 {
+			med = (float64(m.el[len(m.el)/2].(mEl)) + float64(m.el[len(m.el)/2-1].(mEl))) / 2.0
+		} else {
+			med = float64(m.el[len(m.el)/2].(mEl))
+		}
+		return med
+	}
+	return 0.0
+}
+
+// MAD
+type MADer struct {
+	Medianer
+}
+
+func (m *MADer) Float64() float64 {
+	if len(m.el) == 0 {
+		return 0.0
+	}
+	med := m.Medianer.Float64()
+	abs := make([]bisect.Elem, 0, len(m.el))
+	for _, e := range m.el {
+		abs = bisect.Insort(abs, mEl(math.Abs(float64(e.(mEl)) - med)))
+	}
+	var mad float64
+	if len(abs)%2 == 0 {
+		mad = (float64(abs[len(abs)/2].(mEl)) + float64(abs[len(abs)/2-1].(mEl))) / 2.0
+	} else {
+		mad = float64(abs[len(abs)/2].(mEl))
+	}
+	return mad
+}
+
+func (m *MADer) String() string {
+	return strconv.FormatFloat(m.Float64(), 'g', 15, 64)
 }
