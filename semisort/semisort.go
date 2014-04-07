@@ -9,7 +9,7 @@ import (
 )
 
 var Delim = flag.String("d", ",", "Field delimiter")
-var Keys = flag.String("k", "", "Sort keys (eg: 2,1r,3rn,4n")
+var Keys = flag.String("k", "", "Sort keys (eg: 2,1r,3rn,4n)")
 var WinSz = flag.Int("s", 2048, "Window size")
 var delim []byte
 var sspec []SortSpec
