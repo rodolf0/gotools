@@ -11,6 +11,8 @@ import (
 var Delim = flag.String("d", ",", "Field delimiter")
 var Keys = flag.String("k", "", "Sort keys (eg: 2,1r,3rn,4n)")
 var WinSz = flag.Int("s", 2048, "Window size")
+var SortH = flag.Bool("H", false, "sort header")
+
 var delim []byte
 var sspec []SortSpec
 var sortwin []*util.Row
@@ -76,6 +78,15 @@ func main() {
 		files[0] = "-"
 	}
 	rows := util.Files2Rows(files, delim, done)
+
+	if !*SortH {
+		if header, ok := <-rows; ok {
+			os.Stdout.Write(header.Data)
+			os.Stdout.Write([]byte("\n"))
+		} else {
+			return
+		}
+	}
 
 	// fill sort-window
 	for len(sortwin) < cap(sortwin) {
