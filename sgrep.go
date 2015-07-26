@@ -12,8 +12,7 @@ import (
 )
 
 var nscopes = flag.Uint("n", 1, "Number of outer scopes to output")
-var only = flag.Bool("only", false, "Don't print the surrounding line context")
-var pretty = flag.Bool("pretty", false, "Use colors")
+var pretty = flag.Bool("pretty", true, "Use colors")
 var pattern *regexp.Regexp
 var delims map[string]*Delimiter
 
@@ -79,9 +78,9 @@ type Scope struct {
 	match  bool // scope contains a match, so it needs to be printed
 }
 
-type PrinterFn func(*Scope, io.Writer, map[uint]*Line)
+type PrinterFn func(*Scope, io.Writer, map[uint]*Line, map[uint][]int)
 
-func (s *Scope) writePretty(out io.Writer, symbols map[uint]*Line) {
+func (s *Scope) writePretty(out io.Writer, symbols map[uint]*Line, matches map[uint][]int) {
 	if s.end != nil && s.start.line.num == s.end.line.num {
 		sline, scol, eline, ecol := s.start.line.num, s.start.col, s.end.line.num, s.end.col
 		sdlen, edlen := uint(len(s.start.delim.str)), uint(len(s.end.delim.str))
@@ -89,8 +88,14 @@ func (s *Scope) writePretty(out io.Writer, symbols map[uint]*Line) {
 		out.Write([]byte("\033[1;32m"))
 		out.Write(symbols[sline].line[scol : scol+sdlen])
 		out.Write([]byte("\033[0m"))
-		out.Write(symbols[sline].line[scol+sdlen : ecol])
-		// TODO hl matches
+
+		loc := matches[s.start.line.num]
+		out.Write(symbols[sline].line[scol+sdlen : loc[0]])
+		out.Write([]byte("\033[1;31m"))
+		out.Write(symbols[sline].line[loc[0] : loc[1]])
+		out.Write([]byte("\033[0m"))
+		out.Write(symbols[sline].line[loc[1] : ecol])
+
 		out.Write([]byte("\033[1;32m"))
 		out.Write(symbols[eline].line[ecol : ecol+edlen])
 		out.Write([]byte("\033[0m"))
@@ -109,7 +114,15 @@ func (s *Scope) writePretty(out io.Writer, symbols map[uint]*Line) {
 			if (s.end != nil && l >= s.end.line.num) || !ok {
 				break
 			}
-			out.Write(line.line)
+			if loc, ok := matches[l]; ok {
+				out.Write(line.line[0:loc[0]])
+				out.Write([]byte("\033[1;31m"))
+				out.Write(line.line[loc[0]: loc[1]])
+				out.Write([]byte("\033[0m"))
+				out.Write(line.line[loc[1]:])
+			} else {
+				out.Write(line.line)
+			}
 		}
 		if s.end != nil {
 			eline, ecol, dlen := s.end.line.num, s.end.col, uint(len(s.end.delim.str))
@@ -122,7 +135,7 @@ func (s *Scope) writePretty(out io.Writer, symbols map[uint]*Line) {
 	}
 }
 
-func (s *Scope) write(out io.Writer, symbols map[uint]*Line) {
+func (s *Scope) write(out io.Writer, symbols map[uint]*Line, matches map[uint][]int) {
 	for l := s.start.line.num; ; l++ {
 		line, ok := symbols[l]
 		if (s.end != nil && l > s.end.line.num) || !ok {
@@ -218,7 +231,7 @@ func (c *Context) flushMatching(out io.Writer, openScopes bool, printer PrinterF
 	c.consolidateClosed()
 	for _, s := range c.closed {
 		if s.match {
-			printer(s, out, c.buffer)
+			printer(s, out, c.buffer, c.matches)
 			//fmt.Println(s)
 		}
 	}
@@ -226,7 +239,7 @@ func (c *Context) flushMatching(out io.Writer, openScopes bool, printer PrinterF
 	if openScopes {
 		for _, s := range c.open {
 			if s.match {
-				printer(s, out, c.buffer)
+				printer(s, out, c.buffer, c.matches)
 				//fmt.Println(s)
 			}
 		}
