@@ -79,6 +79,50 @@ type Scope struct {
 	match  bool  // scope contains a match, so it needs to be printed
 }
 
+func (s *Scope) writePretty(out io.Writer, symbols map[uint]*Line) {
+	if s.end != nil && s.start.line.num == s.end.line.num {
+		out.Write(symbols[s.start.line.num].line[0:s.start.col])
+		out.Write([]byte("\033[0;32m"))
+		out.Write(symbols[s.start.line.num].line[s.start.col:s.start.col+1])
+		out.Write([]byte("\033[0m"))
+		out.Write(symbols[s.start.line.num].line[s.start.col+1:s.end.col])
+		out.Write([]byte("\033[0;32m"))
+		out.Write(symbols[s.end.line.num].line[s.end.col:s.end.col+1])
+		out.Write([]byte("\033[0m"))
+		out.Write(symbols[s.end.line.num].line[s.end.col+1:])
+	} else {
+		out.Write(symbols[s.start.line.num].line[:s.start.col])
+		out.Write([]byte("\033[0;32m"))
+		out.Write(symbols[s.start.line.num].line[s.start.col:s.start.col+1])
+		out.Write([]byte("\033[0m"))
+		out.Write(symbols[s.start.line.num].line[s.start.col+1:])
+		for l := s.start.line.num + 1;; l++ {
+			line, ok := symbols[l]
+			if (s.end != nil && l >= s.end.line.num) || !ok {
+				break
+			}
+			out.Write(line.line)
+		}
+		if s.end != nil {
+			out.Write(symbols[s.end.line.num].line[0:s.end.col])
+			out.Write([]byte("\033[0;32m"))
+			out.Write(symbols[s.end.line.num].line[s.end.col:s.end.col+1])
+			out.Write([]byte("\033[0m"))
+			out.Write(symbols[s.end.line.num].line[s.end.col+1:])
+		}
+	}
+}
+
+func (s *Scope) write(out io.Writer, symbols map[uint]*Line) {
+	for l := s.start.line.num;; l++ {
+		line, ok := symbols[l]
+		if (s.end != nil && l > s.end.line.num) || !ok {
+			break
+		}
+		out.Write(line.line)
+	}
+}
+
 func (s *Scope) String() string {
 	if s.end != nil {
 		return fmt.Sprintf("%v:%v - %v:%v",
@@ -100,7 +144,7 @@ func (s *Scope) contains(line, col0, col1 uint) bool {
 type Context struct {
 	open   []*Scope // currently open scopes, last is tightest
 	closed []*Scope // closed scopes, first is tightest, last is broadest
-	buffer []*Line
+	buffer map[uint]*Line
 }
 
 func (c *Context) markNScopes(N, line, col0, col1 uint) {
@@ -166,14 +210,24 @@ func (c *Context) flushMatching(out io.Writer, openScopes bool) {
 	c.consolidateClosed()
 	for _, s := range c.closed {
 		if s.match {
-			fmt.Println(s)
+			if *pretty {
+				s.writePretty(out, c.buffer)
+			} else {
+				s.write(out, c.buffer)
+			}
+			//fmt.Println(s)
 		}
 	}
-	c.closed = nil
+	c.closed = c.closed[0:0]
 	if openScopes {
 		for _, s := range c.open {
 			if s.match {
-				fmt.Println(s)
+				if *pretty {
+					s.writePretty(out, c.buffer)
+				} else {
+					s.write(out, c.buffer)
+				}
+				//fmt.Println(s)
 			}
 		}
 	}
@@ -202,7 +256,7 @@ func (c *Context) consolidateClosed() {
 
 func main() {
 	in := bufio.NewReader(os.Stdin)
-	ctx := Context{open: nil, closed: nil, buffer: make([]*Line, 0, 16)}
+	ctx := Context{open: nil, closed: nil, buffer: make(map[uint]*Line)}
 
 	line_number := uint(0)
 	for {
@@ -216,7 +270,7 @@ func main() {
 			ctx.parseScopes(line)
 			// keep buffer of lines if there's an open scope
 			if len(ctx.open) > 0 {
-				ctx.buffer = append(ctx.buffer, line)
+				ctx.buffer[line_number] = line
 			}
 			if loc := pattern.FindIndex(line.line); loc != nil {
 				// get n-containing scopes and mark them for printing
